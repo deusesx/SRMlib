@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from scipy.optimize import curve_fit
+from .sklearn_model import SoftwareReliabilityGrowthModel as SRGM
 
 def GoF(y_predicted, y, param_number):
     """
@@ -14,7 +15,7 @@ def GoF(y_predicted, y, param_number):
     """
     return np.sum(np.power(y_predicted - y, 2)) / (len(y) - param_number)
 
-def PA(trainset, fit_func, x_label='x', y_label='y'):
+def PA(trainset, fit_func, x_label='x', y_label='y', error_threshold=10):
     """
     Predictive Ability shows how early in the testing 
     the model is able to predict the final number 
@@ -23,13 +24,20 @@ def PA(trainset, fit_func, x_label='x', y_label='y'):
     last = len(trainset)
     for i in range(1, last-1):
         tr = trainset.head(last - i)
-        popt, pcov = curve_fit(fit_func, tr[x_label].values, tr[y_label].values)
-        a = popt[0]
-        error = AcFP(trainset.y.iloc[-1], a)
-        if error > 10:
+        model = SRGM(fit_func)
+        model.fit(tr[x_label].values, tr[y_label].values)
+        if model.popt is not None:
+            a = model.popt[0]
+            error = AcFP(trainset.y.iloc[-1], a)
+            if error > error_threshold:
+                pa = round(1 - (i-1)/last, 6)
+                mode = 'normal'
+                break
+        else:
             pa = round(1 - (i-1)/last, 6)
+            mode = 'fitting problem'
             break
-    return pa*100
+    return pa*100, mode
 
 def AcFP(real, predicted):
     """
